@@ -41,4 +41,5 @@ Avant d'utiliser ces fichiers R permettant de calculer plusieurs indicateurs sta
 
 
 ## Contributeurs
-Travail réalisé par: @JoannaGosse
+Travail réalisé par: Laurie Behloul, Rieulle Brusq, Baptiste Delaunay et Joanna Gosse en filière GeoDataScience à l'ENSG Géomatique
+
