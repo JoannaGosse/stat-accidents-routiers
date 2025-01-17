@@ -14,6 +14,7 @@ Utiliser nos compétences en analyses statistiques et machine learning pour anal
 - Un fichier description-des-bases-de-donnees-annuelles-2.pdf: métadonnées des données téléchargées avec les informations correspondant à chaque attribut.
 - Un fichier rapport_stat_accidents_routiers.pdf contenant le résumé de notre étude.
 - Un fichier PresentationStat.pdf contenant le support de notre présentation orale.
+- Un fichier README.Md
 
 ### Fichiers .R contenant les études statistiques
 - RF_CrossValidation_Bootstrap.R: fichier dans lequel on réalise l'étude de prédiction machine learning avec un algorithme random forest, une validation croisée et un bootstrap.
