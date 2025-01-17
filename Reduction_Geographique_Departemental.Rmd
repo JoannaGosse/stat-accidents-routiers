@@ -1,0 +1,283 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+Import des librairies nécessaires
+```{r}
+library(readr)
+library(dplyr)
+library(sf)
+library(mapsf)
+library(GWmodel)
+library(RColorBrewer)
+```
+
+
+Chargement des données
+```{r}
+caracteristiques <- read_csv2('data/2023/caracteristiques.csv')
+lieux <- read_csv2('data/2023/lieux.csv')
+usagers <- read_csv2('data/2023/usagers.csv')
+vehicules <- read_csv2('data/2023/vehicules.csv')
+densite_dep <- read_csv2('data_insee/densite_departement.csv')
+densite_com <- read_csv2('data_insee/densite_commune.csv')
+```
+
+
+Calcul des indicateurs
+```{r}
+nb_impliques <- usagers %>%
+  group_by(Num_Acc) %>%
+  summarise(nb_impliques = n())
+
+nb_morts <- usagers %>%
+  filter(grav == 2) %>% 
+  group_by(Num_Acc) %>%
+  summarise(nb_morts = n())
+
+nb_blessé <- usagers %>%
+  filter(grav == 3) %>% 
+  group_by(Num_Acc) %>%
+  summarise(nb_blessé = n())
+
+nb_hospit <- usagers %>%
+  filter(grav == 4) %>% 
+  group_by(Num_Acc) %>%
+  summarise(nb_hospit = n())
+
+nb_indemnes <- usagers %>%
+  filter(grav == 1) %>% 
+  group_by(Num_Acc) %>%
+  summarise(nb_indemnes = n())
+
+
+nb_vehicules <- vehicules %>%
+  group_by(Num_Acc) %>%
+  summarize(nb_vehicules = n_distinct(id_vehicule)
+  )
+```
+
+
+Joindre ces valeurs à la table principale
+```{r}
+caracteristiques <- caracteristiques %>%
+  left_join(nb_impliques, by = "Num_Acc")
+caracteristiques$nb_impliques[is.na(caracteristiques$nb_impliques)] <- 0
+
+caracteristiques <- caracteristiques %>%
+  left_join(nb_morts, by = "Num_Acc")
+caracteristiques$nb_morts[is.na(caracteristiques$nb_morts)] <- 0
+
+caracteristiques$mortel <- ifelse(caracteristiques$nb_morts != 0, 1, 0)
+
+caracteristiques <- caracteristiques %>%
+  left_join(nb_blessé, by = "Num_Acc")
+caracteristiques$nb_blessé[is.na(caracteristiques$nb_blessé)] <- 0
+
+caracteristiques <- caracteristiques %>%
+  left_join(nb_hospit, by = "Num_Acc")
+caracteristiques$nb_hospit[is.na(caracteristiques$nb_hospit)] <- 0
+
+caracteristiques <- caracteristiques %>%
+  left_join(nb_indemnes, by = "Num_Acc")
+caracteristiques$nb_indemnes[is.na(caracteristiques$nb_indemnes)] <- 0
+
+caracteristiques <- caracteristiques %>%
+  left_join(nb_vehicules, by = "Num_Acc")
+caracteristiques$nb_vehicules[is.na(caracteristiques$nb_vehicules)] <- 0
+
+caracteristiques$agg <- caracteristiques$agg-1
+
+```
+
+
+Réduction à l'échelle de la métropole
+```{r}
+caracteristiques <- caracteristiques %>%
+  filter(!is.na(long), !is.na(lat), 41<lat, lat<51, -5<long,long<10)
+```
+
+
+Regroupement par département
+```{r}
+caracteristiques <- caracteristiques %>%
+    group_by(dep) %>%
+    summarise(
+      nombre_accidents=n(),
+      morts = sum(nb_morts),
+      mortalite = sum(morts)/n(),
+      impliqués = sum(nb_impliques),
+      blessé = sum(nb_blessé),
+      hospitalisé = sum(nb_hospit),
+      tx_agglo=sum(agg)/n(),
+      nb_vehicules=sum(nb_vehicules)/n()
+    )
+```
+
+
+Chargement des départements français
+```{r}
+france <- st_read('pays','departements-20180101')
+france <- france %>% filter(code_insee %in% caracteristiques$dep)
+mf_base(france, extent = st_bbox(st_position))
+```
+
+Calcul des centroïdes
+```{r}
+france$centroid <- st_centroid(france$geometry)
+```
+
+
+Joindre les centroîdes et géométrie
+```{r}
+caracteristiques <- caracteristiques %>%
+  inner_join(france %>% select(code_insee, centroid, geometry), by = c('dep'='code_insee'))
+
+caracteristiques <- caracteristiques %>%
+  mutate(long = st_coordinates(centroid)[,1],
+         lat = st_coordinates(centroid)[,2])
+
+caracteristiques <- caracteristiques %>% select(-centroid)
+```
+
+
+Joindre la densité
+```{r}
+caracteristiques <- caracteristiques %>%
+  inner_join(densite_dep %>% select(Code,Densite_Pop), by = c('dep'='Code'))
+```
+
+
+Positionement des valeurs
+```{r}
+caracteristiques_sf <- st_as_sf(caracteristiques)
+
+
+gwbasic <- gwr.basic(Densite_Pop~nombre_accidents+mortalite+tx_agglo+nb_vehicules,
+                     data=caracteristiques_sf,
+                     bw=10,
+                     kernel="bisquare", # noyau par default
+                     adaptive=T # a mettre a F pour un voisinage de taille fixe (bw, en unités de mesure des geometry)
+)
+```
+
+
+
+```{r}
+coefs = gwbasic$SDF
+
+caracteristiques_sf$localR2=coefs$Local_R2
+caracteristiques_sf$residuals = coefs$residual
+caracteristiques_sf$alpha_nombre_accidents = coefs$nombre_accidents
+caracteristiques_sf$alpha_mortalite = coefs$mortalite
+caracteristiques_sf$alpha_tx_agglo = coefs$tx_agglo
+caracteristiques_sf$alpha_nb_vehicules = coefs$nb_vehicules
+
+
+
+mf_map(caracteristiques_sf,var='localR2',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='residuals',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='alpha_nombre_accidents',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='alpha_mortalite',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='alpha_tx_agglo',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='alpha_nb_vehicules',type='choro',pal = brewer.pal(8, "Reds"))
+```
+
+Optimiser la bandwith
+```{r}
+bwfullaic = bw.gwr(Densite_Pop~nombre_accidents+mortalite+tx_agglo+nb_vehicules,
+                   data=caracteristiques_sf,
+                   approach="AIC",
+                   kernel="bisquare",
+                   adaptive=T)
+
+gwopt <- gwr.basic(Densite_Pop~nombre_accidents+mortalite+tx_agglo+nb_vehicules,
+                   data=caracteristiques_sf,
+                   bw=bwfullaic,
+                   adaptive=TRUE)
+print(gwopt)
+
+coefs = gwopt$SDF
+
+caracteristiques_sf$opt_alpha_localR2 = coefs$Local_R2
+caracteristiques_sf$opt_alpha_residuals = coefs$residual
+caracteristiques_sf$opt_alpha_nombre_accidents = coefs$nombre_accidents
+caracteristiques_sf$opt_alpha_mortalite = coefs$mortalite
+caracteristiques_sf$opt_alpha_tx_agglo = coefs$tx_agglo
+caracteristiques_sf$opt_alpha_nb_vehicules = coefs$nb_vehicules
+
+breaks_r2 <- seq(from = -1, to = 1, by = 0.25)
+
+# Vérifier que les breaks sont correctement définis
+print(breaks_r2)
+
+# Créer la carte avec ces breaks
+mf_map(
+  caracteristiques_sf,  # Jeu de données avec les informations spatiales
+  var = 'opt_alpha_localR2',  # Nom de la variable contenant les valeurs de R² local
+  type = 'choro',  # Carte choroplèthe
+  breaks = breaks_r2,  # Appliquer les breaks allant de -1 à 1 avec intervalle de 0.1
+  pal = brewer.pal(length(breaks_r2) - 1, "Reds"),  # Palette de couleurs "Reds", ajustée pour le nombre de classes
+  leg_title = "Local R²",  # Titre de la légende
+  leg_pos = c(1, 1)  # Position de la légende en haut à droite
+)
+
+mf_map(caracteristiques_sf,var='localR2',type='choro',breaks = breaks_r2,pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_localR2',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_residuals',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_mortalite',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_nombre_accidents',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_tx_agglo',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_nb_vehicules',type='choro',pal = brewer.pal(8, "Reds"))
+```
+
+
+
+Selection de modèle (méthode de "forward selection")
+```{r}
+gwselec = gwr.model.selection(
+  DeVar = "Densite_Pop",
+  InDeVars = c("nombre_accidents","mortalite","tx_agglo","nb_vehicules"),
+  data=caracteristiques_sf,
+  bw = bwfullaic,
+  approach="AIC",adaptive=T
+)
+
+print(gwselec)
+aicc = gwselec[[2]][,3]
+gwselec[[1]][which(aicc==min(aicc))]
+
+gwoptmodel <- gwr.basic(Densite_Pop~nombre_accidents+mortalite+tx_agglo+nb_vehicules,
+                   data=caracteristiques_sf,
+                   bw=bwfullaic,
+                   adaptive=TRUE)
+
+
+coefs = gwoptmodel$SDF
+
+caracteristiques_sf$opt_alpha_localR2 = coefs$Local_R2
+caracteristiques_sf$opt_alpha_residuals = coefs$residual
+caracteristiques_sf$opt_alpha_nombre_accidents = coefs$nombre_accidents
+caracteristiques_sf$opt_alpha_mortalite = coefs$mortalite
+caracteristiques_sf$opt_alpha_tx_agglo = coefs$tx_agglo
+caracteristiques_sf$opt_alpha_nb_vehicules = coefs$nb_vehicules
+
+breaks_r2 <- seq(from = min(coefs$Local_R2), to = max(coefs$Local_R2), by = (max(coefs$Local_R2)-min(coefs$Local_R2))/8)
+
+mf_map(
+  caracteristiques_sf,
+  var = 'opt_alpha_localR2',
+  type = 'choro',
+  breaks = breaks_r2,
+  pal = brewer.pal(length(breaks_r2) - 1, "Reds"),
+  leg_title = "Local R²")
+
+
+mf_map(caracteristiques_sf,var='opt_alpha_residuals',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_mortalite',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_nombre_accidents',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_tx_agglo',type='choro',pal = brewer.pal(8, "Reds"))
+mf_map(caracteristiques_sf,var='opt_alpha_nb_vehicules',type='choro',pal = brewer.pal(8, "Reds"))
+```
