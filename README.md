@@ -33,9 +33,12 @@ Avant d'utiliser ces fichiers R permettant de calculer plusieurs indicateurs sta
 - Chi2_Fisher_Anova.R
 - KDE_Map.R
 - Évolution annuelle du nombre d'accidents (2006-2023).R
-- 
+  
 #### Dossier MachineLearning_VisuCarto
 - RF_CrossValidation_Bootstrap.R: fichier dans lequel on réalise l'étude de prédiction machine learning avec un algorithme random forest, une validation croisée et un bootstrap
 - Reduction_Geographique_Departemental.Rmd: fichier qui permet de réaliser les représentations cartographiques (GWR...)
 - Representation_carto.R: Representation interactions spatiales
 
+
+## Contributeurs
+Travail réalisé par: @JoannaGosse
