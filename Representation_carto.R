@@ -4,7 +4,6 @@ library(sf)
 library(mapsf)
 library(RColorBrewer)
 
-# 1.1) Charger les donnees: data/firmsnetwork/{cities.csv,links.csv}
 caracteristiques <- read_csv2('data/2023/caracteristiques.csv')
 lieux <- read_csv2('data/2023/lieux.csv')
 usagers <- read_csv2('data/2023/usagers.csv')
@@ -78,8 +77,7 @@ caracteristiques <- caracteristiques %>%
       nombre_accidents=n(),
     )
 
-# 1.2) Cartographier la specialisation des aires urbaines
-
+# Cartographier la specialisation des aires urbaines
 
 # - avec fond de carte de la france
 
