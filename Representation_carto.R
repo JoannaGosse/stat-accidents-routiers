@@ -1,33 +1,3 @@
-
-#####
-# TP : Interaction spatiales
-#
-
-#########
-# 1) Analyse du reseau Europeen de filiales d'entreprises
-#   -> Aires urbaines Fonctionelles Europeennes (base GHSL, Joint Research Center Commission Europeenne)
-#   -> liens d'appartenance entre entreprises agreges (poids du lien: turnover pondere)
-#      base ORBIS : Rozenblat, C. (2021). Intra and inter-city networks of multinational firms (2010-2019). Handbook on cities and networks, 511-556.
-#   
-#  Caractéristiques des aires urbaines:
-#    * turnover des entreprises
-#    * parts de differents secteurs d'activite (secteurs d'activité: https://ec.europa.eu/competition/mergers/cases/index/nace_all.html)
-#    * pays
-#    * population
-#    * gdp
-# 
-#  Caractéristiques des liens:
-#    * origine
-#    * destination
-#    * poids: turnover pondéré
-#    * turnover a l'origine
-#    * turnover a destination, 
-#    * pays d'origine
-#    * pays de destination
-#    * distance geographique
-#    * similarite entre structure industrielle
-# 
-
 library(readr)
 library(dplyr)
 library(sf)
