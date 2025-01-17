@@ -114,7 +114,6 @@ all_year_summary[, "grav"] <- NULL
 all_year_summary <- all_year_summary[ , -1]
 
 
-
 ############################################# RANDOM FOREST ############################################
 
 #Sans équilibrage des données
